@@ -23,27 +23,22 @@ import { VoiceTestState } from './voiceTest';
 type TRPCRouter = Router<
   unknown,
   unknown,
-  Record<
-    'driveUpload',
-    Procedure<
+  {
+    driveUpload: Procedure<
       unknown,
       unknown,
-      {
-        recordingId: string;
-        userId: string;
-      },
-      {
-        recordingId: string;
-        userId: string;
-      },
-      {
-        error: string | null;
-        notify: boolean;
-        id?: string | undefined;
-        url?: string | undefined;
-      }
-    >
-  >,
+      { recordingId: string; userId: string },
+      { recordingId: string; userId: string },
+      { error: string | null; notify: boolean; id?: string | undefined; url?: string | undefined }
+    >;
+    notionUpload: Procedure<
+      unknown,
+      unknown,
+      { recordingId: string; channelId: string; userId: string },
+      { recordingId: string; channelId: string; userId: string },
+      { error: string | null; notify: boolean; url?: string | undefined }
+    >;
+  },
   any,
   any,
   DefaultErrorShape

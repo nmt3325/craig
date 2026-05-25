@@ -80,6 +80,18 @@ model AutoRecord {
   @@index([clientId], type: Hash)
 }
 
+// Notion Integration
+
+model NotionChannel {
+  channelId  String   @id
+  guildId    String
+  databaseId String
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([guildId])
+}
+
 // Cloud Backup
 
 model GoogleDriveUser {

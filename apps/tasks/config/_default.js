@@ -46,6 +46,11 @@ module.exports = {
     skipIds: []
   },
 
+  // Notion integration token (https://www.notion.so/profile/integrations)
+  notion: {
+    token: ''
+  },
+
   timezone: 'America/New_York',
   loggerLevel: 'debug',
   tasks: {

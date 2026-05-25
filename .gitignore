@@ -57,3 +57,6 @@ apps/*/config/*.js
 .patreon-credentials.json
 install.config
 
+# claude settings
+.claude
+

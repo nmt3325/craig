@@ -14,6 +14,8 @@ const SERVICES: Record<string, string> = {
   box: 'Box'
 };
 
+const NOTION_SERVICE = 'Notion';
+
 const ERROR_COLOR = 0xe74c3c;
 const SUCCESS_COLOR = 0x2ecc71;
 
@@ -114,6 +116,43 @@ export default class UploadModule extends DexareModule<CraigBot> {
         description: `Unable to connect to the Cloud Backup microservice. You will need to manually upload your recording (\`${recordingId}\`) to ${service}.`,
         color: ERROR_COLOR
       });
+    }
+  }
+
+  async notionUpload(recordingId: string, channelId: string, userId: string) {
+    const response = await this.trpc.query('notionUpload', { recordingId, channelId, userId }).catch(() => null);
+
+    if (!response) {
+      this.logger.error(`Failed to upload recording ${recordingId} to ${NOTION_SERVICE}: Could not connect to the server`);
+      await this.dm(userId, {
+        title: `Failed to upload to ${NOTION_SERVICE}`,
+        description: `Unable to connect to the Cloud Backup microservice. You will need to manually upload your recording to ${NOTION_SERVICE}.`,
+        color: ERROR_COLOR
+      });
+      return;
+    }
+
+    if (response.error) {
+      this.logger.error(`Failed to upload recording ${recordingId} to ${NOTION_SERVICE}: ${response.error}`);
+      if (response.notify)
+        await this.dm(userId, {
+          title: `Failed to upload to ${NOTION_SERVICE}`,
+          description: `Failed to upload recording \`${recordingId}\` to ${NOTION_SERVICE}.\n\n- **\`${response.error}\`**`,
+          color: ERROR_COLOR
+        });
+      return;
+    }
+
+    if (response.notify) {
+      await this.dm(
+        userId,
+        {
+          title: `Uploaded to ${NOTION_SERVICE}`,
+          description: `Recording \`${recordingId}\` was uploaded to ${NOTION_SERVICE}.`,
+          color: SUCCESS_COLOR
+        },
+        response.url ? { label: `Open in ${NOTION_SERVICE}`, url: response.url } : undefined
+      );
     }
   }
 

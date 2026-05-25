@@ -378,6 +378,9 @@ export default class Recording {
 
       if (this.started)
         await this.uploadToDrive().catch((e) => this.recorder.logger.error(`Failed to upload recording ${this.id} to ${this.user.id}`, e));
+
+      if (this.started)
+        await this.uploadToNotion().catch((e) => this.recorder.logger.error(`Failed to upload recording ${this.id} to Notion`, e));
     } catch (e) {
       // This is pretty bad, make sure to clean up any reference
       this.recorder.logger.error(`Failed to stop recording ${this.id} by ${this.user.username}#${this.user.discriminator} (${this.user.id})`, e);
@@ -390,6 +393,13 @@ export default class Recording {
     if (!user || !user.driveEnabled) return;
 
     await this.recorder.uploader.upload(this.id, this.user.id, user.driveService);
+  }
+
+  async uploadToNotion() {
+    const notionChannel = await prisma.notionChannel.findUnique({ where: { channelId: this.channel.id } });
+    if (!notionChannel) return;
+
+    await this.recorder.uploader.notionUpload(this.id, this.channel.id, this.user.id);
   }
 
   async connect() {
