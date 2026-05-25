@@ -54,6 +54,7 @@ nohup.out
 config.json
 apps/*/config/*.js
 !apps/*/config/_default.js
+!apps/*/config/custom-environment-variables.js
 .patreon-credentials.json
 install.config
 
