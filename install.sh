@@ -379,8 +379,8 @@ config_yarn(){
   # build (increase heap for Next.js build)
   NODE_OPTIONS=--max-old-space-size=4096 yarn run build
 
-  # sync Discord slash commands globally
-  yarn run sync
+  # sync Discord slash commands globally (non-fatal: valid token required)
+  yarn run sync || true
 
   # only sync Discord slash commands to the guild
   # specified by DEVELOPMENT_GUILD_ID in install.config
