@@ -1,11 +1,13 @@
-###################################################
-# Discord bot
-###################################################
+##################################################
+# Discord bot (必須 / Required)
+##################################################
 
 DISCORD_BOT_TOKEN=
 DISCORD_APP_ID=
 CLIENT_ID=
 CLIENT_SECRET=
+# オプション: スラッシュコマンドをテスト用サーバーのみに同期する場合
+# Optional: sync slash commands only to a dev server
 DEVELOPMENT_GUILD_ID=
 
 ##################################################
@@ -16,22 +18,36 @@ PATREON_CLIENT_ID=test
 PATREON_CLIENT_SECRET=test
 PATRON_TIER_MAP={\"00001\":2,\"0002\":3}
 PATREON_WEBHOOK_SECRET=test
+
+# Google Drive連携を使う場合は Google Cloud Console で OAuth クライアントを作成し設定
+# Required only if using Google Drive backup
 GOOGLE_CLIENT_ID=test
 GOOGLE_CLIENT_SECRET=test
+
+# OneDrive連携を使う場合は Azure Portal で OAuth クライアントを作成し設定
+# Required only if using OneDrive backup
 MICROSOFT_CLIENT_ID=test
 MICROSOFT_CLIENT_SECRET=test
+
+# Dropbox連携を使う場合は Dropbox Developer Console で OAuth クライアントを作成し設定
+# Required only if using Dropbox backup
 DROPBOX_CLIENT_ID=test
 DROPBOX_CLIENT_SECRET=test
+
 APP_URI=http://localhost:3000
-JWT_SECRET=1234
+
+# セキュリティのため本番環境では変更してください / Change this in production
+JWT_SECRET=changeme
 
 ##################################################
 # Download app environment
 ##################################################
 
 API_PORT=5029
+# Dockerでは自動的に 0.0.0.0 に上書きされます / Overridden to 0.0.0.0 automatically in Docker
 API_HOST=127.0.0.1
-API_HOMEPAGE=https://craig.chat/
+# 録音ダウンロードリンクのベースURL / Base URL for recording download links
+API_HOMEPAGE=http://localhost:5029
 ENNUIZEL_BASE=https://ez.craig.horse/
 TRUST_PROXY=
 SENTRY_DSN=
@@ -45,6 +61,7 @@ INFLUX_TOKEN=
 INFLUX_ORG=
 INFLUX_BUCKET=
 SERVER_NAME=dev
+# DockerではNODE_CONFIGで自動設定されます / Auto-configured via NODE_CONFIG in Docker
 REDIS_HOST=
 REDIS_PORT=
 
@@ -58,4 +75,5 @@ POSTGRESQL_USER="craig"
 POSTGRESQL_PASSWORD="craig"
 POSTGRESQL_START_TIMEOUT_S=10
 REDIS_START_TIMEOUT_S=10
+# DockerではCMDで @db:5432 に自動上書きされます / Auto-overridden to @db:5432 in Docker
 DATABASE_URL=\"postgresql://$POSTGRESQL_USER:$POSTGRESQL_PASSWORD@localhost:5432/$DATABASE_NAME?schema=public\"

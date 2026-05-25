@@ -465,7 +465,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async function (ctx
   return {
     props: {
       user,
-      rewardTier: dbUser?.rewardTier || 0,
+      rewardTier: 100,
       patronId: dbUser?.patronId || null,
       patron,
       drive: {

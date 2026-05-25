@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres
+    image: postgres:16
     restart: always
     environment:
       POSTGRES_PASSWORD: craig
@@ -25,6 +25,8 @@ services:
     ports:
       - "3000:3000"
       - "5029:5029"
+    environment:
+      NODE_CONFIG: '{"redis":{"host":"redis","port":6379}}'
     depends_on:
       db:
         condition: service_healthy

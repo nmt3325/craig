@@ -37,5 +37,5 @@ RUN ./install.sh
 EXPOSE 3000
 # Expose API port
 EXPOSE 5029
-# Start Craig
-CMD ["sh", "-c", "/app/install.sh && sleep infinity"]
+# Start Craig (build already ran install.sh; runtime only deploys DB and starts pm2)
+CMD ["bash", "-c", "source /root/.nvm/nvm.sh && nvm use node && source /app/install.config && export DATABASE_URL=\"postgresql://${POSTGRESQL_USER}:${POSTGRESQL_PASSWORD}@db:5432/${DATABASE_NAME}?schema=public\" && export API_HOST=0.0.0.0 && cd /app && yarn prisma:deploy && cd apps/bot && pm2 start ecosystem.config.js && cd /app/apps/dashboard && pm2 start ecosystem.config.js && cd /app/apps/download && pm2 start ecosystem.config.js && cd /app/apps/tasks && pm2 start ecosystem.config.js && pm2 save && sleep infinity"]

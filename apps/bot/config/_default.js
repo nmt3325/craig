@@ -98,41 +98,7 @@ module.exports = {
         connectUrl: 'http://localhost:5000?id={id}&key={key}'
       },
       rewardTiers: {
-        [-1]: {
-          // Greater Weasels
-          recordHours: 24,
-          downloadExpiryHours: 720,
-          features: ['mix', 'auto', 'drive', 'glowers', 'eccontinuous', 'ecflac', 'mp3']
-        },
         [0]: {
-          // Default
-          recordHours: 6,
-          downloadExpiryHours: 168,
-          features: []
-        },
-        [10]: {
-          // Supporters / I'm chipping in!
-          recordHours: 6,
-          downloadExpiryHours: 336,
-          features: ['drive', 'glowers'],
-          sizeLimitMult: 2
-        },
-        [20]: {
-          // Supporterers / More power!
-          recordHours: 24,
-          downloadExpiryHours: 720,
-          features: ['mix', 'auto', 'drive', 'glowers', 'eccontinuous'],
-          sizeLimitMult: 2
-        },
-        [30]: {
-          // Supporterests / I DEMAND FLAC
-          recordHours: 24,
-          downloadExpiryHours: 720,
-          features: ['mix', 'auto', 'drive', 'glowers', 'eccontinuous', 'ecflac'],
-          sizeLimitMult: 2
-        },
-        [100]: {
-          // MP3 God
           recordHours: 24,
           downloadExpiryHours: 720,
           features: ['mix', 'auto', 'drive', 'glowers', 'eccontinuous', 'ecflac', 'mp3'],

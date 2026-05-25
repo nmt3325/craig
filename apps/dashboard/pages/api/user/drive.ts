@@ -14,7 +14,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
 
   const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
   if (!dbUser) return res.status(404).send({ error: 'User not found' });
-  if (dbUser.rewardTier === 0) return res.status(400).send({ error: 'User is not a patron' });
 
   const { format, container, enabled, service } = req.body;
   if (!formats.includes(format)) return res.status(400).send({ error: 'Invalid format' });

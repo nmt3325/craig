@@ -372,12 +372,12 @@ config_yarn(){
   # install dependencies
   yarn install
 
-  # config prisma
+  # config prisma (deploy skipped here if DB unavailable; CMD handles it at runtime)
   yarn prisma:generate
-  yarn prisma:deploy
+  yarn prisma:deploy || true
 
-  # build
-  yarn run build
+  # build (increase heap for Next.js build)
+  NODE_OPTIONS=--max-old-space-size=4096 yarn run build
 
   # sync Discord slash commands globally
   yarn run sync

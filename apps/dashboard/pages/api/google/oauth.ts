@@ -22,7 +22,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (!user) return res.redirect('/');
   const dbUser = await prisma.user.findFirst({ where: { id: user.id } });
   if (!dbUser) return res.redirect('/');
-  if (dbUser.rewardTier === 0) return res.redirect('/');
 
   const { code = null, error = null } = req.query;
   if (error) return res.redirect(`/?error=${req.query.error}&from=google`);
