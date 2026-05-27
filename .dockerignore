@@ -1,0 +1,25 @@
+# Version control
+.git
+.gitignore
+
+# Node modules (installed inside container by install.sh)
+node_modules
+apps/*/node_modules
+apps/*/dist
+
+# Runtime data — persisted via Docker volumes
+rec/
+whisper-models/
+apps/download/downloads/
+
+# install.config contains secrets; passed as a BuildKit secret at build time
+# (never bake into the image context — add the real file only for local builds)
+install.config
+
+# Logs
+*.log
+install.log
+
+# OS / editor artefacts
+.DS_Store
+*.swp

@@ -1,7 +1,10 @@
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:16
-    restart: always
+    platform: linux/arm64
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: craig
       POSTGRES_DB: craig
@@ -14,19 +17,37 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - 'db_data:/var/lib/postgresql/data'
+      - db_data:/var/lib/postgresql/data
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
-    image: redis
-    restart: always
+    image: redis:7
+    platform: linux/arm64
+    restart: unless-stopped
     ports:
       - "6379:6379"
+
+  # ── Craig (bot + download API + dashboard + tasks) ──────────────────────────
   craig:
-    build: .
+    # Option A (production): pull the pre-built image from GHCR.
+    #   docker compose pull && docker compose up -d
+    image: ghcr.io/nmt3325/craig:latest
+    # Option B (local build): comment out `image:` above and uncomment below.
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   secrets:
+    #     - install_config
+    platform: linux/arm64
+    restart: unless-stopped
     ports:
       - "3000:3000"
       - "5029:5029"
     environment:
+      # Route redis and tasks-service config to the compose services.
       NODE_CONFIG: '{"redis":{"host":"redis","port":6379}}'
+      # Notion integration token — set in your shell or a .env file.
+      NOTION_TOKEN: "${NOTION_TOKEN:-}"
     depends_on:
       db:
         condition: service_healthy
@@ -34,9 +55,20 @@ services:
       redis:
         condition: service_started
     volumes:
-      - 'craig_rec:/app/rec'
-      - './install.config:/app/install.config:ro'
+      # Application config (Discord token, DB credentials, etc.)
+      - ./install.config:/app/install.config:ro
+      # Recording files — keep across container rebuilds.
+      - craig_rec:/app/rec
+      # Whisper model cache — large-v3 int8 (~1.5 GB) downloaded only once.
+      - whisper_models:/app/whisper-models
 
 volumes:
   db_data:
   craig_rec:
+  whisper_models:
+
+# BuildKit secret for local builds (Option B above).
+# Create a file named install.config, then: docker compose build
+secrets:
+  install_config:
+    file: ./install.config
