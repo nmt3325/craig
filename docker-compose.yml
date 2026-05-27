@@ -1,7 +1,10 @@
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:16
-    restart: always
+    platform: linux/arm64
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: craig
       POSTGRES_DB: craig
@@ -14,19 +17,60 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - 'db_data:/var/lib/postgresql/data'
+      - db_data:/var/lib/postgresql/data
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
-    image: redis
-    restart: always
+    image: redis:7
+    platform: linux/arm64
+    restart: unless-stopped
     ports:
       - "6379:6379"
+
+  # ── Craig (bot + download API + dashboard + tasks) ──────────────────────────
   craig:
-    build: .
+    # Option A (production): pull the pre-built image from GHCR.
+    #   docker compose pull && docker compose up -d
+    image: ghcr.io/nmt3325/craig:latest
+    # Option B (local build): comment out `image:` above and uncomment below.
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    platform: linux/arm64
+    restart: unless-stopped
     ports:
       - "3000:3000"
       - "5029:5029"
+    # All secrets come from .env (create it from .env.example).
+    # docker-compose reads .env automatically for variable substitution and,
+    # via env_file, passes every variable into the container.
+    env_file: .env
     environment:
-      NODE_CONFIG: '{"redis":{"host":"redis","port":6379}}'
+      # ── node-config overrides (highest priority, overrides default.js) ──────
+      # Extend this JSON with any node-config key you want to override at runtime.
+      # DISCORD_BOT_TOKEN and DISCORD_APP_ID are set here so the bot can start
+      # without baking secrets into the image at build time.
+      NODE_CONFIG: >-
+        {
+          "redis": {"host": "redis", "port": 6379},
+          "dexare": {
+            "token": "${DISCORD_BOT_TOKEN}",
+            "applicationID": "${DISCORD_APP_ID}",
+            "craig": {
+              "downloadProtocol": "${DOWNLOAD_PROTOCOL:-https}",
+              "downloadDomain": "${DOWNLOAD_DOMAIN}"
+            }
+          }
+        }
+      # ── Internal service routing ─────────────────────────────────────────────
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      # Postgres credentials (must match the db service above)
+      POSTGRESQL_USER: craig
+      POSTGRESQL_PASSWORD: craig
+      DATABASE_NAME: craig
+      # Notion integration token (optional)
+      NOTION_TOKEN: "${NOTION_TOKEN:-}"
     depends_on:
       db:
         condition: service_healthy
@@ -34,9 +78,12 @@ services:
       redis:
         condition: service_started
     volumes:
-      - 'craig_rec:/app/rec'
-      - './install.config:/app/install.config:ro'
+      # Recording files — keep across container rebuilds.
+      - craig_rec:/app/rec
+      # Whisper model cache — large-v3 int8 (~1.5 GB) downloaded only once.
+      - whisper_models:/app/whisper-models
 
 volumes:
   db_data:
   craig_rec:
+  whisper_models:

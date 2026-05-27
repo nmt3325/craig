@@ -12,6 +12,7 @@ import * as cookRoute from './routes/cook';
 import { ennuizelWebsocketRoute } from './routes/ennuizel';
 import * as pageRoute from './routes/page';
 import * as recordingRoute from './routes/recording';
+import * as transcribeRoute from './routes/transcribe';
 import { close as closeSentry } from './sentry';
 import { ErrorCode } from './util';
 import { downloadPath } from './util/download';
@@ -105,6 +106,8 @@ export async function start(): Promise<void> {
   server.route(cookRoute.postRoute);
   server.route(cookRoute.ennuizelRoute);
   server.route(cookRoute.avatarRoute);
+  server.route(transcribeRoute.getRoute);
+  server.route(transcribeRoute.postRoute);
   server.route(pageRoute.pageRoute);
   server.route(pageRoute.scriptRoute);
   server.route(pageRoute.sourceMapRoute);

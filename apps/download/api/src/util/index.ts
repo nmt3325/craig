@@ -16,7 +16,11 @@ export enum ErrorCode {
   INVALID_BG = 1103,
   INVALID_FG = 1104,
 
-  RATELIMITED = 2001
+  RATELIMITED = 2001,
+
+  TRANSCRIPTION_IN_PROGRESS = 3001,
+  TRANSCRIPTION_NOT_FOUND = 3002,
+  INVALID_TRANSCRIBE_FORMAT = 3003
 }
 
 export function formatTime(seconds: number) {

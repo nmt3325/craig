@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# Node modules (installed inside container by install.sh)
+node_modules
+apps/*/node_modules
+apps/*/dist
+
+# Runtime data — persisted via Docker volumes
+rec/
+whisper-models/
+apps/download/downloads/
+
+# install.config contains secrets — never include the real file in the build context.
+# install.config.build is a non-secret stub and IS included (needed by the Dockerfile).
+install.config
+!install.config.build
+
+# Logs
+*.log
+install.log
+
+# OS / editor artefacts
+.DS_Store
+*.swp

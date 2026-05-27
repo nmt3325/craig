@@ -31,6 +31,8 @@ APT_DEPENDENCIES=(
   coreutils         # install
   build-essential   # install
   python-setuptools # install
+  python3           # transcription
+  python3-pip       # transcription
 )
 
 # Get the directory of the script being executed
@@ -115,6 +117,14 @@ install_apt_packages() {
   echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
   sudo apt-get update || true
   sudo apt-get -y install redis
+}
+
+install_python_packages() {
+  info "Installing Python packages for transcription (faster-whisper)..."
+  # faster-whisper uses CTranslate2 which has ARM NEON int8 support on aarch64.
+  # Install into the system Python3 environment.
+  pip3 install --upgrade pip
+  pip3 install faster-whisper
 }
 
 install_node() {
@@ -469,6 +479,7 @@ config_cook(){
 
   if [[ ! -f "$INSTALL_MARKER" ]]; then
     install_apt_packages
+    install_python_packages
     install_node
   else
     info "Skipping install: already completed"

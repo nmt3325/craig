@@ -15,10 +15,15 @@ RUN apt-get update && \
     postgresql \
     # install
     dbus-x11 sed coreutils build-essential python-setuptools \
+    # transcription
+    python3 python3-pip \
     # Other dependencies
     sudo git locales && \
     # Cleanup
-    apt-get -y autoremove
+    apt-get -y autoremove && \
+    # Install faster-whisper for ARM64 CPU (int8 via CTranslate2 NEON)
+    pip3 install --upgrade pip && \
+    pip3 install faster-whisper
 
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8
