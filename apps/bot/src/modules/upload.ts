@@ -217,9 +217,9 @@ export default class UploadModule extends DexareModule<CraigBot> {
               color: SUCCESS_COLOR,
               fields
             }
-          ]
-        },
-        { file: Buffer.from(transcript, 'utf8'), name: `transcript-${recordingId}.txt` }
+          ],
+          attachments: [{ filename: `transcript-${recordingId}.txt`, file: Buffer.from(transcript, 'utf8') }]
+        }
       )
       .catch(() => {});
   }
