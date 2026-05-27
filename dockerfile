@@ -1,46 +1,54 @@
-# Use an official Ubuntu base image
-FROM ubuntu:22.04
+# ── Oracle A1 / Ampere Altra (aarch64 ARM64) ──────────────────────────────────
+# faster-whisper large-v3 with compute_type="int8" runs via CTranslate2
+# NEON dot-product instructions — no GPU required.
+FROM --platform=linux/arm64 ubuntu:22.04
 
-# Install all required dependencies in advance, for performance
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    # Tells install.sh to skip local Redis / PostgreSQL service start
+    container=docker
+
+# ── Layer 1: system packages ──────────────────────────────────────────────────
+# Pre-installing here keeps this heavy layer cached across source-code changes.
 RUN apt-get update && \
     apt-get -y upgrade && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    # cook
-    make inkscape ffmpeg flac fdkaac vorbis-tools opus-tools zip unzip \
-    wget \
-    # redis
-    lsb-release curl gpg \
-    ca-certificates redis redis-server redis-tools \
-    # web
-    postgresql \
-    # install
-    dbus-x11 sed coreutils build-essential python-setuptools \
-    # transcription
-    python3 python3-pip \
-    # Other dependencies
-    sudo git locales && \
-    # Cleanup
-    apt-get -y autoremove && \
-    # Install faster-whisper for ARM64 CPU (int8 via CTranslate2 NEON)
-    pip3 install --upgrade pip && \
-    pip3 install faster-whisper
+    apt-get install -y --no-install-recommends \
+      # Audio processing (cook.sh)
+      make inkscape ffmpeg flac fdkaac vorbis-tools opus-tools zip unzip at lame wget \
+      # Redis (daemon skipped at runtime in Docker mode; tools still needed)
+      lsb-release curl gpg ca-certificates redis redis-server redis-tools \
+      # PostgreSQL (server skipped at runtime; client used for prisma)
+      postgresql \
+      # Python 3 + pip for faster-whisper
+      python3 python3-pip python3-setuptools \
+      # Build essentials
+      dbus-x11 sed coreutils build-essential sudo git locales && \
+    locale-gen en_US.UTF-8 && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN locale-gen en_US.UTF-8
-ENV LANG=en_US.UTF-8
+# ── Layer 2: Python packages ──────────────────────────────────────────────────
+# Install before COPY so this layer is cached across source-code changes.
+# CTranslate2 uses ARM NEON dot-product instructions for int8 quantization.
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir faster-whisper
 
-# Used for Docker-specific build logic in install.sh
-ENV container=docker
-
+# ── Layer 3: application source ───────────────────────────────────────────────
 WORKDIR /app
-
-# Copy the repo, particularly environment variables with discord API keys
 COPY . .
-# Run first-time setup for faster restarts
-RUN ./install.sh
 
-# Expose app port
-EXPOSE 3000
-# Expose API port
-EXPOSE 5029
-# Start Craig (build already ran install.sh; runtime only deploys DB and starts pm2)
-CMD ["bash", "-c", "source /root/.nvm/nvm.sh && nvm use node && source /app/install.config && export DATABASE_URL=\"postgresql://${POSTGRESQL_USER}:${POSTGRESQL_PASSWORD}@db:5432/${DATABASE_NAME}?schema=public\" && export API_HOST=0.0.0.0 && export NOTION_TOKEN && cd /app && yarn prisma:deploy && yarn run sync || true && cd apps/bot && pm2 start ecosystem.config.js && cd /app/apps/dashboard && pm2 start ecosystem.config.js && cd /app/apps/download && pm2 start ecosystem.config.js && cd /app/apps/tasks && pm2 start ecosystem.config.js && pm2 save && sleep infinity"]
+# ── Layer 4: Node.js + yarn build ─────────────────────────────────────────────
+# install.config.build is a non-secret stub committed to the repo.
+# It provides NODE_VERSION and dummy defaults so install.sh can run without
+# any real secrets.  All actual secrets (Discord token, OAuth credentials, etc.)
+# are injected at runtime via docker-compose environment variables; the
+# entrypoint regenerates the per-app .env files before starting pm2.
+RUN cp install.config.build install.config && ./install.sh
+
+# Whisper model cache — persisted via a Docker volume so the ~1.5 GB
+# large-v3 int8 model is downloaded only once.
+RUN mkdir -p /app/whisper-models
+
+# ── Runtime ───────────────────────────────────────────────────────────────────
+EXPOSE 3000 5029
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
