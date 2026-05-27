@@ -8,10 +8,13 @@ Optimised for Oracle A1 Ampere Altra ARM64 (aarch64):
   - num_workers=1         → one sequential job; all threads go to one worker
 
 Usage:
-  transcribe.py <recording_id> [--lang <code>] [--format srt|vtt|txt]
+  transcribe.py <recording_id> [--lang <code>] [--format srt|vtt|txt|json]
                 [--rec-dir <path>] [--model-dir <path>] [--cpu-threads N]
+                [--track N]  # 1-based OGG audio stream index
 
-Outputs the transcription to stdout in the requested format.
+When --track is given only that stream is decoded and transcribed.
+JSON output (--format json):
+  {"language":"en","language_probability":0.99,"segments":[{"start":0.0,"end":2.5,"text":"..."}]}
 """
 
 import argparse
@@ -26,15 +29,11 @@ def parse_args():
     p = argparse.ArgumentParser(description="Transcribe a Craig recording with faster-whisper")
     p.add_argument("id", help="Recording ID")
     p.add_argument("--lang", default=None, help="Language code (e.g. en, ja) — auto-detect if omitted")
-    p.add_argument("--format", choices=["srt", "vtt", "txt"], default="srt")
+    p.add_argument("--format", choices=["srt", "vtt", "txt", "json"], default="srt")
     p.add_argument("--rec-dir", default=None, help="Path to the rec directory")
     p.add_argument("--model-dir", default=None, help="Path to the model cache directory")
-    p.add_argument(
-        "--cpu-threads",
-        type=int,
-        default=None,
-        help="CPU thread count (default: physical core count)",
-    )
+    p.add_argument("--cpu-threads", type=int, default=None, help="CPU thread count (default: physical core count)")
+    p.add_argument("--track", type=int, default=None, help="1-based OGG audio stream index to transcribe")
     return p.parse_args()
 
 
@@ -69,6 +68,17 @@ def to_txt(segments):
     return "\n".join(seg.text.strip() for seg in segments)
 
 
+def to_json_str(segments, info):
+    return json.dumps({
+        "language": info.language,
+        "language_probability": round(info.language_probability, 4),
+        "segments": [
+            {"start": round(s.start, 3), "end": round(s.end, 3), "text": s.text.strip()}
+            for s in segments
+        ]
+    }, ensure_ascii=False)
+
+
 def build_ogg(rec_dir, recording_id):
     """Concatenate the three OGG segment files into one temporary file."""
     tmp = tempfile.NamedTemporaryFile(suffix=".ogg", delete=False)
@@ -85,29 +95,37 @@ def build_ogg(rec_dir, recording_id):
     return tmp.name
 
 
-def decode_to_wav(ogg_path):
-    """Decode an OGG file (possibly multi-stream) to 16 kHz mono WAV."""
-    wav_path = ogg_path.replace(".ogg", ".wav")
+def decode_to_wav(ogg_path, track=None):
+    """
+    Decode an OGG file to 16 kHz mono WAV.
 
-    # Detect number of audio streams to build the correct amix filter.
-    probe = subprocess.run(
-        [
-            "ffprobe", "-v", "quiet",
-            "-print_format", "json",
-            "-show_streams", "-select_streams", "a",
-            ogg_path,
-        ],
-        capture_output=True,
-        text=True,
-    )
-    n = len(json.loads(probe.stdout).get("streams", [])) if probe.returncode == 0 else 1
-    n = max(n, 1)
+    track: 1-based audio stream index. When None, all streams are amixed.
+    """
+    suffix = f"_t{track}" if track is not None else ""
+    wav_path = ogg_path.replace(".ogg", f"{suffix}.wav")
 
-    filter_args = (
-        ["-filter_complex", f"amix=inputs={n}:duration=longest"]
-        if n > 1
-        else []
-    )
+    if track is not None:
+        # Select specific 0-based audio stream
+        filter_args = ["-map", f"0:a:{track - 1}"]
+    else:
+        # Count streams to build amix filter
+        probe = subprocess.run(
+            [
+                "ffprobe", "-v", "quiet",
+                "-print_format", "json",
+                "-show_streams", "-select_streams", "a",
+                ogg_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        n = len(json.loads(probe.stdout).get("streams", [])) if probe.returncode == 0 else 1
+        n = max(n, 1)
+        filter_args = (
+            ["-filter_complex", f"amix=inputs={n}:duration=longest"]
+            if n > 1
+            else []
+        )
 
     result = subprocess.run(
         ["ffmpeg", "-y", "-i", ogg_path]
@@ -130,19 +148,17 @@ def main():
 
     os.makedirs(model_dir, exist_ok=True)
 
-    # Number of physical cores.
     # Ampere Altra has no hyperthreading → os.cpu_count() == physical cores.
     cpu_threads = args.cpu_threads or os.cpu_count() or 4
-
-    # Tell OpenMP to use the same count so all libraries agree.
     os.environ.setdefault("OMP_NUM_THREADS", str(cpu_threads))
 
     ogg_path = build_ogg(rec_dir, args.id)
     wav_path = None
 
     try:
-        print(f"Decoding audio for {args.id}...", file=sys.stderr)
-        wav_path = decode_to_wav(ogg_path)
+        track_label = f" track={args.track}" if args.track is not None else " (mixed)"
+        print(f"Decoding audio for {args.id}{track_label}...", file=sys.stderr)
+        wav_path = decode_to_wav(ogg_path, args.track)
 
         from faster_whisper import WhisperModel  # noqa: PLC0415
 
@@ -173,8 +189,6 @@ def main():
             beam_size=5,
             vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 400},
-            # Disable conditioning on previous text to reduce hallucinations
-            # on silent or low-speech sections.
             condition_on_previous_text=False,
         )
         segments = list(segments)
@@ -187,6 +201,8 @@ def main():
             print(to_srt(segments))
         elif args.format == "vtt":
             print(to_vtt(segments))
+        elif args.format == "json":
+            print(to_json_str(segments, info))
         else:
             print(to_txt(segments))
 

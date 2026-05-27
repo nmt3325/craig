@@ -38,6 +38,13 @@ type TRPCRouter = Router<
       { recordingId: string; channelId: string; userId: string },
       { error: string | null; notify: boolean; url?: string | undefined }
     >;
+    transcribeUpload: Procedure<
+      unknown,
+      unknown,
+      { recordingId: string; channelId: string; userId: string; lang?: string },
+      { recordingId: string; channelId: string; userId: string; lang?: string },
+      { error: string | null; notify: boolean; url?: string | undefined; transcript?: string | undefined }
+    >;
   },
   any,
   any,

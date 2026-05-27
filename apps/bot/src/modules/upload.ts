@@ -197,6 +197,64 @@ export default class UploadModule extends DexareModule<CraigBot> {
     }
   }
 
+  async dmTranscript(userId: string, recordingId: string, transcript: string, notionUrl?: string) {
+    const dmChannel = await this.client.bot.getDMChannel(userId).catch(() => null);
+    if (!dmChannel) return;
+
+    const preview = transcript.length > 800 ? transcript.slice(0, 800) + '\n…' : transcript;
+    const speakerCount = new Set(transcript.match(/\] (.+?):/g)?.map((m) => m.slice(2, -1)) ?? []).size;
+
+    const fields: Dysnomia.EmbedField[] = [{ name: 'Speakers', value: String(speakerCount), inline: true }];
+    if (notionUrl) fields.push({ name: 'Notion', value: `[View full transcript](${notionUrl})`, inline: true });
+
+    await dmChannel
+      .createMessage(
+        {
+          embeds: [
+            {
+              title: '📝 Transcription Complete',
+              description: `Recording \`${recordingId}\` has been transcribed.\n\`\`\`\n${preview}\n\`\`\``,
+              color: SUCCESS_COLOR,
+              fields
+            }
+          ]
+        },
+        { file: Buffer.from(transcript, 'utf8'), name: `transcript-${recordingId}.txt` }
+      )
+      .catch(() => {});
+  }
+
+  async transcribeUpload(recordingId: string, channelId: string, userId: string, lang?: string) {
+    const response = await this.trpc
+      .query('transcribeUpload', { recordingId, channelId, userId, ...(lang ? { lang } : {}) })
+      .catch(() => null);
+
+    if (!response) {
+      this.logger.error(`Failed to transcribe recording ${recordingId}: could not connect to tasks service`);
+      await this.dm(userId, {
+        title: 'Transcription Failed',
+        description: `Unable to transcribe recording \`${recordingId}\`. The transcription service is unavailable.`,
+        color: ERROR_COLOR
+      });
+      return;
+    }
+
+    if (response.error) {
+      this.logger.error(`Failed to transcribe recording ${recordingId}: ${response.error}`);
+      if (response.notify)
+        await this.dm(userId, {
+          title: 'Transcription Failed',
+          description: `Failed to transcribe recording \`${recordingId}\`.\n\n- **\`${response.error}\`**`,
+          color: ERROR_COLOR
+        });
+      return;
+    }
+
+    if (response.notify && response.transcript) {
+      await this.dmTranscript(userId, recordingId, response.transcript, response.url);
+    }
+  }
+
   async onTick() {
     if (this.running) return;
     this.running = true;

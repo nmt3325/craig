@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { driveUpload } from './queries/driveUpload';
 import { notionUpload } from './queries/notionUpload';
+import { transcribeUpload } from './queries/transcribeUpload';
 
 export const appRouter = trpc
   .router()
@@ -24,6 +25,17 @@ export const appRouter = trpc
     }),
     resolve: async ({ input }) => {
       return await notionUpload(input);
+    }
+  })
+  .query('transcribeUpload', {
+    input: z.object({
+      recordingId: z.string(),
+      channelId: z.string(),
+      userId: z.string(),
+      lang: z.string().optional()
+    }),
+    resolve: async ({ input }) => {
+      return await transcribeUpload(input);
     }
   });
 

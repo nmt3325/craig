@@ -381,6 +381,9 @@ export default class Recording {
 
       if (this.started)
         await this.uploadToNotion().catch((e) => this.recorder.logger.error(`Failed to upload recording ${this.id} to Notion`, e));
+
+      if (this.started)
+        await this.transcribeAndUpload().catch((e) => this.recorder.logger.error(`Failed to transcribe recording ${this.id}`, e));
     } catch (e) {
       // This is pretty bad, make sure to clean up any reference
       this.recorder.logger.error(`Failed to stop recording ${this.id} by ${this.user.username}#${this.user.discriminator} (${this.user.id})`, e);
@@ -400,6 +403,10 @@ export default class Recording {
     if (!notionChannel) return;
 
     await this.recorder.uploader.notionUpload(this.id, this.channel.id, this.user.id);
+  }
+
+  async transcribeAndUpload() {
+    await this.recorder.uploader.transcribeUpload(this.id, this.channel.id, this.user.id);
   }
 
   async connect() {
