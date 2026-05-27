@@ -12,9 +12,10 @@ rec/
 whisper-models/
 apps/download/downloads/
 
-# install.config contains secrets; passed as a BuildKit secret at build time
-# (never bake into the image context — add the real file only for local builds)
+# install.config contains secrets — never include the real file in the build context.
+# install.config.build is a non-secret stub and IS included (needed by the Dockerfile).
 install.config
+!install.config.build
 
 # Logs
 *.log

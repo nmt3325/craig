@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Non-secret build-time stub for install.config.
+# Real secrets are injected at runtime via docker-compose environment variables.
+# Commit this file; never commit the real install.config.
+
+NODE_VERSION=20
+
+# ── Discord (overridden at runtime via NODE_CONFIG) ──────────────────────────
+DISCORD_BOT_TOKEN=""
+DISCORD_APP_ID=""
+DEVELOPMENT_GUILD_ID=""
+
+# ── PostgreSQL (overridden at runtime via DATABASE_URL env var) ───────────────
+DATABASE_NAME="craig"
+POSTGRESQL_USER="craig"
+POSTGRESQL_PASSWORD="craig"
+DATABASE_URL="postgresql://craig:craig@localhost:5432/craig?schema=public"
+
+# ── Download API (overridden at runtime via apps/download/.env) ───────────────
+API_PORT=5029
+API_HOST="127.0.0.1"
+API_HOMEPAGE="https://localhost:5029/"
+ENNUIZEL_BASE="https://ez.craig.horse/"
+TRUST_PROXY=""
+
+# ── Dashboard OAuth (overridden at runtime via apps/dashboard/.env) ───────────
+CLIENT_ID=""
+CLIENT_SECRET=""
+APP_URI="http://localhost:3000"
+JWT_SECRET="build-placeholder-change-at-runtime"
+PATREON_CLIENT_ID=""
+PATREON_CLIENT_SECRET=""
+PATRON_TIER_MAP=""
+PATREON_WEBHOOK_SECRET=""
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+MICROSOFT_CLIENT_ID=""
+MICROSOFT_CLIENT_SECRET=""
+DROPBOX_CLIENT_ID=""
+DROPBOX_CLIENT_SECRET=""
+
+# ── Observability (all optional) ──────────────────────────────────────────────
+SENTRY_DSN=""
+SENTRY_HOST=""
+SENTRY_SAMPLE_RATE="1.0"
+SENTRY_DSN_API=""
+SENTRY_ENV=""
+SENTRY_SAMPLE_RATE_API="1.0"
+INFLUX_URL=""
+INFLUX_TOKEN=""
+INFLUX_ORG=""
+INFLUX_BUCKET=""
+SERVER_NAME="craig"

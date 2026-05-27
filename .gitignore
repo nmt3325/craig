@@ -57,6 +57,7 @@ apps/*/config/*.js
 !apps/*/config/custom-environment-variables.js
 .patreon-credentials.json
 install.config
+!install.config.build
 
 # claude settings
 .claude

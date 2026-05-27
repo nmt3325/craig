@@ -37,17 +37,12 @@ WORKDIR /app
 COPY . .
 
 # ── Layer 4: Node.js + yarn build ─────────────────────────────────────────────
-# install.sh installs Node via nvm, builds TypeScript, and writes .env files
-# for each app from install.config values.
-#
-# install.config is passed as a BuildKit secret so it is:
-#   - never stored in any image layer, and
-#   - not required in the Docker build context (.dockerignore excludes it).
-#
-# Local build:  docker build --secret id=install_config,src=install.config .
-# CI build:     secrets: | install_config=${{ secrets.INSTALL_CONFIG }}
-RUN --mount=type=secret,id=install_config,target=/app/install.config \
-    ./install.sh
+# install.config.build is a non-secret stub committed to the repo.
+# It provides NODE_VERSION and dummy defaults so install.sh can run without
+# any real secrets.  All actual secrets (Discord token, OAuth credentials, etc.)
+# are injected at runtime via docker-compose environment variables; the
+# entrypoint regenerates the per-app .env files before starting pm2.
+RUN cp install.config.build install.config && ./install.sh
 
 # Whisper model cache — persisted via a Docker volume so the ~1.5 GB
 # large-v3 int8 model is downloaded only once.
