@@ -188,7 +188,11 @@ def main():
             language=args.lang,
             beam_size=5,
             vad_filter=True,
-            vad_parameters={"min_silence_duration_ms": 500, "speech_pad_ms": 400},
+            vad_parameters={
+                "threshold": 0.3,
+                "min_silence_duration_ms": 300,
+                "speech_pad_ms": 600,
+            },
             condition_on_previous_text=False,
         )
         segments = list(segments)

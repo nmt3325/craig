@@ -52,6 +52,11 @@ export default class NotionCommand extends GeneralCommand {
               name: 'database-id',
               description: 'The Notion database ID (UUID from the database URL).',
               required: true
+            },
+            {
+              type: CommandOptionType.STRING,
+              name: 'lang',
+              description: 'Transcription language code (e.g. ja, en, zh). Omit for auto-detect.'
             }
           ]
         },
@@ -119,7 +124,7 @@ export default class NotionCommand extends GeneralCommand {
             embeds: [
               {
                 title: 'Notion Setting',
-                description: `**Channel:** <#${channelId}>\n**Database ID:** \`${setting.databaseId}\``
+                description: `**Channel:** <#${channelId}>\n**Database ID:** \`${setting.databaseId}\`\n**Transcription Language:** ${setting.transcribeLang || 'auto-detect'}`
               }
             ],
             ephemeral: true
@@ -147,6 +152,7 @@ export default class NotionCommand extends GeneralCommand {
       case 'set': {
         const channelId = ctx.options.set.channel as string;
         const rawId = (ctx.options.set['database-id'] as string).trim();
+        const lang = (ctx.options.set.lang as string | undefined)?.trim().toLowerCase() || null;
 
         if (!isValidDatabaseId(rawId))
           return {
@@ -158,12 +164,13 @@ export default class NotionCommand extends GeneralCommand {
 
         await this.prisma.notionChannel.upsert({
           where: { channelId },
-          update: { databaseId, guildId: ctx.guildID },
-          create: { channelId, guildId: ctx.guildID, databaseId }
+          update: { databaseId, guildId: ctx.guildID, transcribeLang: lang },
+          create: { channelId, guildId: ctx.guildID, databaseId, transcribeLang: lang }
         });
 
+        const langNote = lang ? ` Transcription language set to \`${lang}\`.` : '';
         return {
-          content: `Notion database \`${databaseId}\` has been set for <#${channelId}>. Recordings in this channel will be uploaded automatically.`,
+          content: `Notion database \`${databaseId}\` has been set for <#${channelId}>. Recordings in this channel will be uploaded automatically.${langNote}`,
           ephemeral: true
         };
       }

@@ -224,7 +224,11 @@ export async function transcribeUpload({
   const datePart = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
   const timePart = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}:${String(startDate.getSeconds()).padStart(2, '0')}`;
 
-  logger.info(`Transcribing recording ${recordingId}: ${tracks.length} speaker(s)`);
+  // Look up channel settings early to get transcribeLang
+  const notionChannel = await prisma.notionChannel.findUnique({ where: { channelId } });
+  const effectiveLang = lang || notionChannel?.transcribeLang || undefined;
+
+  logger.info(`Transcribing recording ${recordingId}: ${tracks.length} speaker(s), lang=${effectiveLang || 'auto'}`);
   await setReadyState(recordingId, { message: `Transcribing 0/${tracks.length} speakers...` });
 
   try {
@@ -238,7 +242,7 @@ export async function transcribeUpload({
         progress: Math.round((i / tracks.length) * 100)
       });
 
-      const segments = await runTrackTranscription(recordingId, trackIndex, lang);
+      const segments = await runTrackTranscription(recordingId, trackIndex, effectiveLang);
       if (segments.length > 0) {
         speakers.push({ username, segments });
       }
@@ -253,17 +257,14 @@ export async function transcribeUpload({
 
     // Upload to Notion if the channel is configured
     let notionUrl: string | undefined;
-    if (notionToken) {
-      const notionChannel = await prisma.notionChannel.findUnique({ where: { channelId } });
-      if (notionChannel) {
-        logger.info(`Uploading transcript for ${recordingId} to Notion database ${notionChannel.databaseId}`);
-        await setReadyState(recordingId, { message: 'Uploading transcript to Notion...' });
+    if (notionToken && notionChannel) {
+      logger.info(`Uploading transcript for ${recordingId} to Notion database ${notionChannel.databaseId}`);
+      await setReadyState(recordingId, { message: 'Uploading transcript to Notion...' });
 
-        const pageTitle = `[Transcript] ${info.channel} - ${datePart} ${timePart}`;
-        const pageId = await createTranscriptNotionPage(notionChannel.databaseId, pageTitle, transcriptText);
-        notionUrl = `https://notion.so/${pageId.replace(/-/g, '')}`;
-        logger.info(`Transcript for ${recordingId} uploaded to Notion page ${pageId}`);
-      }
+      const pageTitle = `[Transcript] ${info.channel} - ${datePart} ${timePart}`;
+      const pageId = await createTranscriptNotionPage(notionChannel.databaseId, pageTitle, transcriptText);
+      notionUrl = `https://notion.so/${pageId.replace(/-/g, '')}`;
+      logger.info(`Transcript for ${recordingId} uploaded to Notion page ${pageId}`);
     }
 
     await clearReadyState(recordingId);
