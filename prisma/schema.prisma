@@ -83,11 +83,12 @@ model AutoRecord {
 // Notion Integration
 
 model NotionChannel {
-  channelId  String   @id
-  guildId    String
-  databaseId String
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+  channelId      String   @id
+  guildId        String
+  databaseId     String
+  transcribeLang String?
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([guildId])
 }
