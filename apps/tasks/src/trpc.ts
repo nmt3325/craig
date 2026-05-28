@@ -32,7 +32,8 @@ export const appRouter = trpc
       recordingId: z.string(),
       channelId: z.string(),
       userId: z.string(),
-      lang: z.string().optional()
+      lang: z.string().optional(),
+      notionPageId: z.string().optional()
     }),
     resolve: async ({ input }) => {
       return await transcribeUpload(input);

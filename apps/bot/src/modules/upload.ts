@@ -119,7 +119,7 @@ export default class UploadModule extends DexareModule<CraigBot> {
     }
   }
 
-  async notionUpload(recordingId: string, channelId: string, userId: string) {
+  async notionUpload(recordingId: string, channelId: string, userId: string): Promise<string | undefined> {
     const response = await this.trpc.query('notionUpload', { recordingId, channelId, userId }).catch(() => null);
 
     if (!response) {
@@ -129,7 +129,7 @@ export default class UploadModule extends DexareModule<CraigBot> {
         description: `Unable to connect to the Cloud Backup microservice. You will need to manually upload your recording to ${NOTION_SERVICE}.`,
         color: ERROR_COLOR
       });
-      return;
+      return undefined;
     }
 
     if (response.error) {
@@ -140,7 +140,7 @@ export default class UploadModule extends DexareModule<CraigBot> {
           description: `Failed to upload recording \`${recordingId}\` to ${NOTION_SERVICE}.\n\n- **\`${response.error}\`**`,
           color: ERROR_COLOR
         });
-      return;
+      return undefined;
     }
 
     if (response.notify) {
@@ -154,6 +154,8 @@ export default class UploadModule extends DexareModule<CraigBot> {
         response.url ? { label: `Open in ${NOTION_SERVICE}`, url: response.url } : undefined
       );
     }
+
+    return (response as any).pageId as string | undefined;
   }
 
   async uploadWithTrpc(recordingId: string, userId: string, driveService: string) {
@@ -224,9 +226,9 @@ export default class UploadModule extends DexareModule<CraigBot> {
       .catch(() => {});
   }
 
-  async transcribeUpload(recordingId: string, channelId: string, userId: string, lang?: string) {
+  async transcribeUpload(recordingId: string, channelId: string, userId: string, lang?: string, notionPageId?: string) {
     const response = await this.trpc
-      .query('transcribeUpload', { recordingId, channelId, userId, ...(lang ? { lang } : {}) })
+      .query('transcribeUpload', { recordingId, channelId, userId, ...(lang ? { lang } : {}), ...(notionPageId ? { notionPageId } : {}) })
       .catch(() => null);
 
     if (!response) {

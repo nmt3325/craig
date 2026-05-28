@@ -91,6 +91,18 @@ function transcriptToNotionBlocks(transcriptText: string) {
     }));
 }
 
+async function appendTranscriptToPage(pageId: string, transcriptText: string): Promise<void> {
+  const divider = [{ object: 'block', type: 'divider', divider: {} }, { object: 'block', type: 'heading_3', heading_3: { rich_text: [{ type: 'text', text: { content: '📝 Transcript' } }] } }];
+  const allBlocks = [...divider, ...transcriptToNotionBlocks(transcriptText)];
+  for (let i = 0; i < allBlocks.length; i += NOTION_BLOCKS_PER_REQUEST) {
+    await axios.patch(
+      `${NOTION_API}/blocks/${pageId}/children`,
+      { children: allBlocks.slice(i, i + NOTION_BLOCKS_PER_REQUEST) },
+      { headers: notionHeaders({ 'Content-Type': 'application/json' }) }
+    );
+  }
+}
+
 async function createTranscriptNotionPage(databaseId: string, title: string, transcriptText: string): Promise<string> {
   const titlePropName = await getDatabaseTitleProperty(databaseId);
   const allBlocks = transcriptToNotionBlocks(transcriptText);
@@ -110,7 +122,6 @@ async function createTranscriptNotionPage(databaseId: string, title: string, tra
 
   const pageId: string = pageResponse.data.id;
 
-  // Append remaining blocks in batches (Notion limits 100 per request)
   for (let i = NOTION_BLOCKS_PER_REQUEST; i < allBlocks.length; i += NOTION_BLOCKS_PER_REQUEST) {
     await axios.patch(
       `${NOTION_API}/blocks/${pageId}/children`,
@@ -130,7 +141,7 @@ function runTrackTranscription(recordingId: string, trackIndex: number, lang?: s
       '--format',
       'json',
       '--track',
-      String(trackIndex + 1), // Python script is 1-based
+      String(trackIndex), // OGG stream serial number (= key in .ogg.users file)
       '--rec-dir',
       recPath,
       '--model-dir',
@@ -177,12 +188,14 @@ export async function transcribeUpload({
   recordingId,
   channelId,
   userId,
-  lang
+  lang,
+  notionPageId
 }: {
   recordingId: string;
   channelId: string;
   userId: string;
   lang?: string;
+  notionPageId?: string;
 }): Promise<{ error: null | string; notify: boolean; url?: string; transcript?: string }> {
   // Verify recording files exist
   const infoPath = path.join(recPath, `${recordingId}.ogg.info`);
@@ -258,11 +271,23 @@ export async function transcribeUpload({
     // Upload to Notion if the channel is configured
     let notionUrl: string | undefined;
     if (notionToken && notionChannel) {
-      logger.info(`Uploading transcript for ${recordingId} to Notion database ${notionChannel.databaseId}`);
+      // Wait for notionUpload's API calls to clear the rate limit window
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
       await setReadyState(recordingId, { message: 'Uploading transcript to Notion...' });
 
-      const pageTitle = `[Transcript] ${info.channel} - ${datePart} ${timePart}`;
-      const pageId = await createTranscriptNotionPage(notionChannel.databaseId, pageTitle, transcriptText);
+      let pageId: string;
+      if (notionPageId) {
+        // Append transcript to the audio page created by notionUpload
+        logger.info(`Appending transcript for ${recordingId} to existing Notion page ${notionPageId}`);
+        await appendTranscriptToPage(notionPageId, transcriptText);
+        pageId = notionPageId;
+      } else {
+        // Fallback: create a new standalone transcript page
+        logger.info(`Uploading transcript for ${recordingId} to Notion database ${notionChannel.databaseId}`);
+        const pageTitle = `[Transcript] ${info.channel} - ${datePart} ${timePart}`;
+        pageId = await createTranscriptNotionPage(notionChannel.databaseId, pageTitle, transcriptText);
+      }
       notionUrl = `https://notion.so/${pageId.replace(/-/g, '')}`;
       logger.info(`Transcript for ${recordingId} uploaded to Notion page ${pageId}`);
     }

@@ -379,11 +379,15 @@ export default class Recording {
       if (this.started)
         await this.uploadToDrive().catch((e) => this.recorder.logger.error(`Failed to upload recording ${this.id} to ${this.user.id}`, e));
 
+      let notionPageId: string | undefined;
       if (this.started)
-        await this.uploadToNotion().catch((e) => this.recorder.logger.error(`Failed to upload recording ${this.id} to Notion`, e));
+        notionPageId = await this.uploadToNotion().catch((e) => {
+          this.recorder.logger.error(`Failed to upload recording ${this.id} to Notion`, e);
+          return undefined;
+        });
 
       if (this.started)
-        await this.transcribeAndUpload().catch((e) => this.recorder.logger.error(`Failed to transcribe recording ${this.id}`, e));
+        await this.transcribeAndUpload(notionPageId).catch((e) => this.recorder.logger.error(`Failed to transcribe recording ${this.id}`, e));
     } catch (e) {
       // This is pretty bad, make sure to clean up any reference
       this.recorder.logger.error(`Failed to stop recording ${this.id} by ${this.user.username}#${this.user.discriminator} (${this.user.id})`, e);
@@ -398,15 +402,15 @@ export default class Recording {
     await this.recorder.uploader.upload(this.id, this.user.id, user.driveService);
   }
 
-  async uploadToNotion() {
+  async uploadToNotion(): Promise<string | undefined> {
     const notionChannel = await prisma.notionChannel.findUnique({ where: { channelId: this.channel.id } });
-    if (!notionChannel) return;
+    if (!notionChannel) return undefined;
 
-    await this.recorder.uploader.notionUpload(this.id, this.channel.id, this.user.id);
+    return await this.recorder.uploader.notionUpload(this.id, this.channel.id, this.user.id);
   }
 
-  async transcribeAndUpload() {
-    await this.recorder.uploader.transcribeUpload(this.id, this.channel.id, this.user.id);
+  async transcribeAndUpload(notionPageId?: string) {
+    await this.recorder.uploader.transcribeUpload(this.id, this.channel.id, this.user.id, undefined, notionPageId);
   }
 
   async connect() {

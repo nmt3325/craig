@@ -33,7 +33,7 @@ def parse_args():
     p.add_argument("--rec-dir", default=None, help="Path to the rec directory")
     p.add_argument("--model-dir", default=None, help="Path to the model cache directory")
     p.add_argument("--cpu-threads", type=int, default=None, help="CPU thread count (default: os.cpu_count())")
-    p.add_argument("--track", type=int, default=None, help="1-based OGG audio stream index to transcribe")
+    p.add_argument("--track", type=int, default=None, help="OGG stream serial number to transcribe (= key in .ogg.users file, required)")
     p.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto",
                    help="Inference device: auto (default), cpu, or cuda")
     return p.parse_args()
@@ -97,63 +97,73 @@ def to_json_str(segments, info):
     }, ensure_ascii=False)
 
 
-def build_ogg(rec_dir, recording_id):
-    """Concatenate the three OGG segment files into one temporary file."""
+def _oggcorrect_path():
+    """Return the path to the oggcorrect binary (built by install.sh)."""
+    script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(script_dir, "cook", "oggcorrect")
+
+
+def extract_track_ogg(rec_dir, recording_id, stream_serial):
+    """
+    Extract a single stream from a Craig recording using oggcorrect.
+
+    Craig's OGG files require:
+      1. header1 + header2 + data concatenated TWICE (oggcorrect re-reads
+         the headers after the data to fill silence gaps correctly).
+      2. Piping through oggcorrect <stream_serial> to fix granule positions,
+         remove other streams, and insert silence for packet gaps.
+
+    Returns the path to a temporary single-stream OGG file.
+    """
     tmp = tempfile.NamedTemporaryFile(suffix=".ogg", delete=False)
-    try:
-        for ext in ("header1", "header2", "data"):
-            part = os.path.join(rec_dir, f"{recording_id}.ogg.{ext}")
-            with open(part, "rb") as f:
-                tmp.write(f.read())
-    except Exception:
-        tmp.close()
-        os.unlink(tmp.name)
-        raise
     tmp.close()
+
+    parts = []
+    for ext in ("header1", "header2", "data"):
+        parts.append(os.path.join(rec_dir, f"{recording_id}.ogg.{ext}"))
+
+    # Concatenate twice as required by oggcorrect
+    def _cat_twice(dst_fd):
+        for _ in range(2):
+            for p in parts:
+                with open(p, "rb") as f:
+                    dst_fd.write(f.read())
+
+    raw = tempfile.NamedTemporaryFile(suffix=".ogg.raw", delete=False)
+    try:
+        _cat_twice(raw)
+        raw.close()
+
+        with open(raw.name, "rb") as stdin_f, open(tmp.name, "wb") as stdout_f:
+            result = subprocess.run(
+                [_oggcorrect_path(), str(stream_serial)],
+                stdin=stdin_f,
+                stdout=stdout_f,
+                stderr=subprocess.PIPE,
+            )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"oggcorrect failed (stream {stream_serial}):\n"
+                f"{result.stderr.decode(errors='replace')}"
+            )
+    finally:
+        try:
+            os.unlink(raw.name)
+        except FileNotFoundError:
+            pass
+
     return tmp.name
 
 
-def decode_to_wav(ogg_path, track=None):
-    """
-    Decode an OGG file to 16 kHz mono WAV.
-
-    track: 1-based audio stream index. When None, all streams are amixed.
-    """
-    suffix = f"_t{track}" if track is not None else ""
-    wav_path = ogg_path.replace(".ogg", f"{suffix}.wav")
-
-    if track is not None:
-        # Select specific 0-based audio stream
-        filter_args = ["-map", f"0:a:{track - 1}"]
-    else:
-        # Count streams to build amix filter
-        probe = subprocess.run(
-            [
-                "ffprobe", "-v", "quiet",
-                "-print_format", "json",
-                "-show_streams", "-select_streams", "a",
-                ogg_path,
-            ],
-            capture_output=True,
-            text=True,
-        )
-        n = len(json.loads(probe.stdout).get("streams", [])) if probe.returncode == 0 else 1
-        n = max(n, 1)
-        filter_args = (
-            ["-filter_complex", f"amix=inputs={n}:duration=longest"]
-            if n > 1
-            else []
-        )
-
+def decode_ogg_to_wav(ogg_path):
+    """Decode a single-stream OGG file to 16 kHz mono WAV via ffmpeg."""
+    wav_path = ogg_path.replace(".ogg", ".wav")
     result = subprocess.run(
-        ["ffmpeg", "-y", "-i", ogg_path]
-        + filter_args
-        + ["-ar", "16000", "-ac", "1", wav_path],
+        ["ffmpeg", "-y", "-i", ogg_path, "-ar", "16000", "-ac", "1", wav_path],
         capture_output=True,
     )
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed:\n{result.stderr.decode(errors='replace')}")
-
     return wav_path
 
 
@@ -171,13 +181,19 @@ def main():
 
     device, compute_type = _resolve_device(args.device)
 
-    ogg_path = build_ogg(rec_dir, args.id)
+    if args.track is None:
+        raise SystemExit("--track is required (use the stream serial number from the .users file)")
+
+    ogg_path = None
     wav_path = None
 
     try:
-        track_label = f" track={args.track}" if args.track is not None else " (mixed)"
-        print(f"Decoding audio for {args.id}{track_label}...", file=sys.stderr)
-        wav_path = decode_to_wav(ogg_path, args.track)
+        print(f"Extracting stream {args.track} for {args.id}...", file=sys.stderr)
+        # --track is the OGG stream serial number (= key in .ogg.users file)
+        ogg_path = extract_track_ogg(rec_dir, args.id, args.track)
+
+        print(f"Decoding audio...", file=sys.stderr)
+        wav_path = decode_ogg_to_wav(ogg_path)
 
         from faster_whisper import WhisperModel  # noqa: PLC0415
 

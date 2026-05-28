@@ -89,27 +89,44 @@ async function completeMultiPartUpload(fileUploadId: string) {
   });
 }
 
-async function getDatabaseTitleProperty(databaseId: string): Promise<string> {
+async function getDatabaseProperties(databaseId: string): Promise<{ titleProp: string; dateProp: string | null }> {
   const response = await axios.get(`${NOTION_API}/databases/${databaseId}`, {
     headers: notionHeaders()
   });
   const properties = response.data.properties as Record<string, { type: string }>;
+  let titleProp = 'Name';
+  let dateProp: string | null = null;
   for (const [key, value] of Object.entries(properties)) {
-    if (value.type === 'title') return key;
+    if (value.type === 'title') titleProp = key;
+    if (value.type === 'date' && dateProp === null) dateProp = key;
   }
-  return 'Name';
+  return { titleProp, dateProp };
 }
 
-async function createNotionPage(databaseId: string, titlePropName: string, title: string, fileUploadId: string, fileName: string) {
+async function createNotionPage(
+  databaseId: string,
+  titlePropName: string,
+  title: string,
+  fileUploadId: string,
+  fileName: string,
+  datePropName: string | null,
+  startDate: Date
+) {
+  const properties: Record<string, unknown> = {
+    [titlePropName]: {
+      title: [{ text: { content: title } }]
+    }
+  };
+  if (datePropName) {
+    properties[datePropName] = {
+      date: { start: startDate.toISOString() }
+    };
+  }
   const response = await axios.post(
     `${NOTION_API}/pages`,
     {
       parent: { database_id: databaseId },
-      properties: {
-        [titlePropName]: {
-          title: [{ text: { content: title } }]
-        }
-      },
+      properties,
       children: [
         {
           object: 'block',
@@ -190,14 +207,15 @@ export async function notionUpload({
     await fs.unlink(tempFile).catch(() => {});
     tempFile = null;
 
-    const titlePropName = await getDatabaseTitleProperty(notionChannel.databaseId);
-    const page = await createNotionPage(notionChannel.databaseId, titlePropName, pageTitle, fileUploadId, fileName);
+    const { titleProp: titlePropName, dateProp } = await getDatabaseProperties(notionChannel.databaseId);
+    const page = await createNotionPage(notionChannel.databaseId, titlePropName, pageTitle, fileUploadId, fileName, dateProp, startDate);
 
     logger.info(`Uploaded ${recordingId} to Notion (page: ${page.id})`);
     return {
       error: null,
       notify: true,
-      url: `https://notion.so/${page.id.replace(/-/g, '')}`
+      url: `https://notion.so/${page.id.replace(/-/g, '')}`,
+      pageId: page.id
     };
   } catch (e) {
     logger.error(`Error uploading recording ${recordingId} to Notion`);

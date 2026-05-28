@@ -5,7 +5,10 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     # Tells install.sh to skip local Redis / PostgreSQL service start
-    container=docker
+    container=docker \
+    # CUDA libraries installed by nvidia-cublas-cu12 / nvidia-cudnn-cu12 pip packages
+    # are placed under dist-packages/nvidia/*/lib and are not on the default linker path.
+    LD_LIBRARY_PATH="/usr/local/lib/python3.10/dist-packages/nvidia/cublas/lib:/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib"
 
 # ── Layer 1: system packages ──────────────────────────────────────────────────
 # Pre-installing here keeps this heavy layer cached across source-code changes.
@@ -27,8 +30,14 @@ RUN apt-get update && \
 
 # ── Layer 2: Python packages ──────────────────────────────────────────────────
 # Install before COPY so this layer is cached across source-code changes.
+# nvidia-cublas-cu12 / nvidia-cudnn-cu12 provide the .so files that
+# ctranslate2 needs for GPU inference.  PyPI only ships x86_64 wheels, so
+# this step is skipped on ARM64 (which falls back to CPU inference anyway).
 RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir faster-whisper
+    pip3 install --no-cache-dir faster-whisper && \
+    if [ "$(uname -m)" = "x86_64" ]; then \
+        pip3 install --no-cache-dir nvidia-cublas-cu12 nvidia-cudnn-cu12; \
+    fi
 
 # ── Layer 3: application source ───────────────────────────────────────────────
 WORKDIR /app
@@ -41,6 +50,11 @@ COPY . .
 # are injected at runtime via docker-compose environment variables; the
 # entrypoint regenerates the per-app .env files before starting pm2.
 RUN cp install.config.build install.config && ./install.sh
+
+# ── Layer 5: cook tool compilation ───────────────────────────────────────────
+# buildCook.sh (called by install.sh) may fail on inkscape/dbus-run-session
+# in a headless Docker build.  Compile the C tools explicitly as a fallback.
+RUN cd /app/cook && for f in *.c; do gcc -O3 -o "${f%.c}" "$f"; done
 
 # Whisper model cache — persisted via a Docker volume so the ~1.5 GB
 # large-v3 int8 model is downloaded only once.
