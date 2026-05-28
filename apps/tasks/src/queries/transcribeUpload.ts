@@ -297,13 +297,15 @@ export async function transcribeUpload({
   } catch (e) {
     await clearReadyState(recordingId);
     logger.error(`Error during transcription of ${recordingId}`, e);
+    let errorMessage = ((e as Error).message || 'unknown_error').slice(0, 200);
     if ((e as AxiosError).isAxiosError) {
       const res = (e as AxiosError).response;
-      if (res) logger.error(`Notion API error (${res.status})`, res.data);
+      if (res) {
+        logger.error(`Notion API error (${res.status})`, res.data);
+        const notionMessage = res.data?.message;
+        if (notionMessage) errorMessage = `Notion ${res.status}: ${String(notionMessage).slice(0, 180)}`;
+      }
     }
-    return {
-      error: ((e as Error).message || 'unknown_error').slice(0, 200),
-      notify: true
-    };
+    return { error: errorMessage, notify: true };
   }
 }

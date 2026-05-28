@@ -222,11 +222,15 @@ export async function notionUpload({
     await clearReadyState(recordingId);
     if (child) killProcessTree(child);
     if (tempFile) await fs.unlink(tempFile).catch(() => {});
+    let errorString = ((e as Error).message || 'unknown_error').slice(0, 200);
     if ((e as AxiosError).isAxiosError) {
       const res = (e as AxiosError).response;
-      if (res) logger.error(`Notion API error (${res.status})`, res.data);
+      if (res) {
+        logger.error(`Notion API error (${res.status})`, res.data);
+        const notionMessage = res.data?.message;
+        if (notionMessage) errorString = `Notion ${res.status}: ${String(notionMessage).slice(0, 180)}`;
+      }
     }
-    const errorString = ((e as Error).message || 'unknown_error').slice(0, 200);
     return { error: errorString, notify: true };
   }
 }
