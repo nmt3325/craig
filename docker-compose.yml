@@ -3,7 +3,6 @@ services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:16
-    platform: linux/arm64
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: craig
@@ -22,7 +21,6 @@ services:
   # ── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7
-    platform: linux/arm64
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -36,7 +34,6 @@ services:
     # build:
     #   context: .
     #   dockerfile: Dockerfile
-    platform: linux/arm64
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -80,8 +77,19 @@ services:
     volumes:
       # Recording files — keep across container rebuilds.
       - craig_rec:/app/rec
-      # Whisper model cache — large-v3 int8 (~1.5 GB) downloaded only once.
+      # Whisper model cache — large-v3 (~1.5 GB) downloaded only once.
       - whisper_models:/app/whisper-models
+    # ── GPU (optional) ──────────────────────────────────────────────────────────
+    # Requires NVIDIA Container Toolkit on the host:
+    #   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+    # Remove this section for CPU-only deployments.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   db_data:

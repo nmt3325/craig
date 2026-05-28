@@ -1,7 +1,6 @@
-# ── Oracle A1 / Ampere Altra (aarch64 ARM64) ──────────────────────────────────
-# faster-whisper large-v3 with compute_type="int8" runs via CTranslate2
-# NEON dot-product instructions — no GPU required.
-FROM --platform=linux/arm64 ubuntu:22.04
+# faster-whisper large-v3 with compute_type="int8" runs via CTranslate2.
+# Supports linux/arm64 (NEON) and linux/amd64 (AVX2/VNNI) — no GPU required.
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
@@ -28,7 +27,6 @@ RUN apt-get update && \
 
 # ── Layer 2: Python packages ──────────────────────────────────────────────────
 # Install before COPY so this layer is cached across source-code changes.
-# CTranslate2 uses ARM NEON dot-product instructions for int8 quantization.
 RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir faster-whisper
 

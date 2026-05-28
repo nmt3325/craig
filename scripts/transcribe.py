@@ -2,9 +2,9 @@
 """
 Transcribe a Craig recording using faster-whisper (large-v3, int8 CPU).
 
-Optimised for Oracle A1 Ampere Altra ARM64 (aarch64):
-  - compute_type="int8"  → CTranslate2 uses ARM NEON dot-product instructions
-  - cpu_threads           → set to physical core count (no hyperthreading on Altra)
+Works on linux/arm64 (NEON) and linux/amd64 (AVX2/VNNI) without a GPU:
+  - compute_type="int8"  → CTranslate2 picks the best SIMD path automatically
+  - cpu_threads           → defaults to os.cpu_count() (logical cores)
   - num_workers=1         → one sequential job; all threads go to one worker
 
 Usage:
@@ -32,9 +32,27 @@ def parse_args():
     p.add_argument("--format", choices=["srt", "vtt", "txt", "json"], default="srt")
     p.add_argument("--rec-dir", default=None, help="Path to the rec directory")
     p.add_argument("--model-dir", default=None, help="Path to the model cache directory")
-    p.add_argument("--cpu-threads", type=int, default=None, help="CPU thread count (default: physical core count)")
+    p.add_argument("--cpu-threads", type=int, default=None, help="CPU thread count (default: os.cpu_count())")
     p.add_argument("--track", type=int, default=None, help="1-based OGG audio stream index to transcribe")
+    p.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto",
+                   help="Inference device: auto (default), cpu, or cuda")
     return p.parse_args()
+
+
+def _resolve_device(requested: str) -> tuple:
+    """Return (device, compute_type) for WhisperModel."""
+    if requested == "cpu":
+        return "cpu", "int8"
+    if requested == "cuda":
+        return "cuda", "float16"
+    # auto: use CUDA when a GPU is reachable, otherwise CPU
+    try:
+        import ctranslate2
+        if ctranslate2.get_cuda_device_count() > 0:
+            return "cuda", "float16"
+    except Exception:
+        pass
+    return "cpu", "int8"
 
 
 def _ts(seconds, sep):
@@ -148,9 +166,10 @@ def main():
 
     os.makedirs(model_dir, exist_ok=True)
 
-    # Ampere Altra has no hyperthreading → os.cpu_count() == physical cores.
     cpu_threads = args.cpu_threads or os.cpu_count() or 4
     os.environ.setdefault("OMP_NUM_THREADS", str(cpu_threads))
+
+    device, compute_type = _resolve_device(args.device)
 
     ogg_path = build_ogg(rec_dir, args.id)
     wav_path = None
@@ -162,18 +181,12 @@ def main():
 
         from faster_whisper import WhisperModel  # noqa: PLC0415
 
-        print(
-            f"Loading large-v3 (int8, CPU, threads={cpu_threads})...",
-            file=sys.stderr,
-        )
-        # Optimal for Oracle A1 / Ampere Altra (ARM64, no hyperthreading):
-        #   compute_type="int8"  → NEON dot-product path in CTranslate2
-        #   cpu_threads          → all physical cores to one worker
-        #   num_workers=1        → sequential; avoids thread contention
+        extra = f"threads={cpu_threads}" if device == "cpu" else "float16"
+        print(f"Loading large-v3 ({device}, {extra})...", file=sys.stderr)
         model = WhisperModel(
             "large-v3",
-            device="cpu",
-            compute_type="int8",
+            device=device,
+            compute_type=compute_type,
             download_root=model_dir,
             cpu_threads=cpu_threads,
             num_workers=1,
